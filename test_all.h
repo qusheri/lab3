@@ -1,13 +1,16 @@
 #pragma once
 
-#include "test_btree.h"
-#include "test_hashtable.h"
-#include "test_sparse_matrix.h"
-#include "test_sparse_vector.h"
+#include <vector>
+#include <chrono>
 
-void test_all() {
-    func_test_sparse_matrix();
-    func_test_sparse_vector();
-    func_tests_hashtable();
-    func_tests_bTree();
-}
+void func_test_all();
+
+std::string GenerateRandomString(size_t length);
+
+template <typename Dictionary>
+void TestInsertionToCSV(const std::string& testName, const std::vector<size_t>& sizes, const std::string& filename);
+
+template <typename Dictionary>
+void TestSearchToCSV(const std::string& testName, const std::vector<size_t>& sizes, const std::string& filename);
+
+void all_load_tests(const std::vector<size_t>& sizes);

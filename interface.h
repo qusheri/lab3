@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <utility>
+
 #include "DataStructures/UnqPtr.h"
 #include "DataStructures/SparseMatrix.h"
 #include "DataStructures/SparseVector.h"

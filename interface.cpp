@@ -1,63 +1,83 @@
-#include "interface.h"
-#include "DataStructures/HashTable.h"
-#include "DataStructures/BTree.h"
-
 #include <iostream>
 #include <fstream>
 #include <string>
 #include <cstdlib>
 #include <vector>
-#include <iomanip>
+
+#include "interface.h"
+#include "test_all.h"
+#include "DataStructures/HashTable.h"
+#include "DataStructures/BTree.h"
 
 void displayMenu() {
-    int structureChoice = 0;
-    int dictionaryChoice = 0;
+    std::cout << "Select action:" << std::endl;
+    std::cout << "1. Interact with structs\n";
+    std::cout << "2. Funcional tests\n";
+    std::cout << "3. Load tests with graphs\n";
+    std::cout << "4. Exit\n";
+    int choice;
+    std::cin >> choice;
 
-    std::cout << "Select Structure:\n";
-    std::cout << "1. Sparse Vector\n";
-    std::cout << "2. Sparse Matrix\n";
-    std::cin >> structureChoice;
+    if(choice == 2) {
+        func_test_all();
+    } else if(choice == 3) {
+        std::vector<size_t> sizes;
+        for(size_t i = 1; i <= 10001; i+= 1000) {
+            sizes.push_back(i);
+        }
+        all_load_tests(sizes);
+    } else if(choice == 1) {
+        int structureChoice = 0;
+        int dictionaryChoice = 0;
 
-    std::cout << "Select Dictionary:\n";
-    std::cout << "1. HashTable\n";
-    std::cout << "2. BTree\n";
-    std::cin >> dictionaryChoice;
+        std::cout << "Select Structure:\n";
+        std::cout << "1. Sparse Vector\n";
+        std::cout << "2. Sparse Matrix\n";
+        std::cin >> structureChoice;
 
-    if (structureChoice == 1) {
-        int length;
-        std::cout << "Enter length of the dictionary:\n";
-        std::cin >> length;
-        UnqPtr<IDictionary<int, double>> dictionary;
-        if (dictionaryChoice == 1) {
-            dictionary = UnqPtr<IDictionary<int, double>>(new HashTable<int, double>());
-        } else if (dictionaryChoice == 2) {
-            dictionary = UnqPtr<IDictionary<int, double>>(new BTree<int, double>());
+        std::cout << "Select Dictionary:\n";
+        std::cout << "1. HashTable\n";
+        std::cout << "2. BTree\n";
+        std::cin >> dictionaryChoice;
+
+        if (structureChoice == 1) {
+            int length;
+            std::cout << "Enter length of the dictionary:\n";
+            std::cin >> length;
+            UnqPtr<IDictionary<int, double>> dictionary;
+            if (dictionaryChoice == 1) {
+                dictionary = UnqPtr<IDictionary<int, double>>(new HashTable<int, double>());
+            } else if (dictionaryChoice == 2) {
+                dictionary = UnqPtr<IDictionary<int, double>>(new BTree<int, double>());
+            } else {
+                std::cout << "Invalid choice. Exiting...\n";
+                return;
+            }
+
+            auto sparseVector = UnqPtr(new SparseVector(length, std::move(dictionary)));
+            handleVectorOperations(sparseVector);
+
+        } else if (structureChoice == 2) {
+            int rows, cols;
+            std::cout << "Enter rows and columns:\n";
+            std::cin >> rows >> cols;
+            UnqPtr<IDictionary<IndexPair, double>> dictionary;
+            if (dictionaryChoice == 1) {
+                dictionary = UnqPtr<IDictionary<IndexPair, double>>(new HashTable<IndexPair, double>());
+            } else if (dictionaryChoice == 2) {
+                dictionary = UnqPtr<IDictionary<IndexPair, double>>(new BTree<IndexPair, double>());
+            } else {
+                std::cout << "Invalid choice. Exiting...\n";
+                return;
+            }
+
+            auto sparseMatrix = UnqPtr(new SparseMatrix(rows, cols, std::move(dictionary)));
+            handleMatrixOperations(sparseMatrix);
         } else {
             std::cout << "Invalid choice. Exiting...\n";
-            return;
         }
-
-        auto sparseVector = UnqPtr(new SparseVector(length, std::move(dictionary)));
-        handleVectorOperations(sparseVector);
-
-    } else if (structureChoice == 2) {
-        int rows, cols;
-        std::cout << "Enter rows and columns:\n";
-        std::cin >> rows >> cols;
-        UnqPtr<IDictionary<IndexPair, double>> dictionary;
-        if (dictionaryChoice == 1) {
-            dictionary = UnqPtr<IDictionary<IndexPair, double>>(new HashTable<IndexPair, double>());
-        } else if (dictionaryChoice == 2) {
-            dictionary = UnqPtr<IDictionary<IndexPair, double>>(new BTree<IndexPair, double>());
-        } else {
-            std::cout << "Invalid choice. Exiting...\n";
-            return;
-        }
-
-        auto sparseMatrix = UnqPtr(new SparseMatrix(rows, cols, std::move(dictionary)));
-        handleMatrixOperations(sparseMatrix);
     } else {
-        std::cout << "Invalid choice. Exiting...\n";
+        std::cout << "Exiting...\n";
     }
 }
 
