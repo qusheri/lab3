@@ -19,5 +19,5 @@ public:
     virtual void Remove(const TKey& key) = 0;
     virtual void Update(const TKey& key, const TElement& element) = 0;
 
-    virtual UnqPtr<IDictionaryIterator<TKey, TElement>> GetIterator() const = 0;
+    virtual UnqPtr<IDictionaryIterator<TKey, TElement>> GetIterator() = 0;
 };

@@ -5,10 +5,10 @@
 #include "LinkedList.h"
 #include "ShrdPtr.h"
 #include "UnqPtr.h"
-#include "IndexPair.h"
 #include <functional>
 #include <stdexcept>
-#include <type_traits>
+
+#include "KeyValue.h"
 
 template<typename TKey, typename TElement>
 class HashTable : public IDictionary<TKey, TElement> {
@@ -31,58 +31,127 @@ public:
 
     void Update(const TKey &key, const TElement &element) override;
 
-    UnqPtr<IDictionaryIterator<TKey, TElement>> GetIterator() const override;
+    UnqPtr<IDictionaryIterator<TKey, TElement>> GetIterator() override {
+        return UnqPtr<IDictionaryIterator<TKey, TElement>>(new Iterator(this->table.get()));
+    }
 
 private:
-    struct KeyValuePair {
-        TKey key;
-        TElement value;
+    class Iterator : public IDictionaryIterator<TKey, TElement> {
+    public:
+        explicit Iterator(DynamicArraySmart<LinkedListSmart<KeyValue<TKey, TElement>>>* array)
+        : ArrayIter(new typename DynamicArraySmart<LinkedListSmart<KeyValue<TKey,TElement>>>::Iterator(array)),
+          bucketIter(nullptr)
+        {
+            goToValidBucket();
+        }
 
-        KeyValuePair(const TKey &k, const TElement &v) : key(k), value(v) {}
+        void Reset() override {
+            ArrayIter->Reset();
+            goToValidBucket();
+        }
+
+        TElement& operator*() const override {
+            if (ArrayIter->atEnd() || (*bucketIter).atEnd())
+                throw std::out_of_range("HashTable::Iterator is out of range");
+            return (**bucketIter).value;
+        }
+
+        TKey& GetCurrentKey() const {
+            if (ArrayIter->atEnd() || (*bucketIter).atEnd())
+                throw std::out_of_range("HashTable::Iterator is out of range");
+            return (**bucketIter).key;
+        }
+
+        TElement* operator->() const override {
+            return &this->operator*();
+        }
+
+        Iterator& operator++() override {
+            if (ArrayIter->atEnd()) {
+                return *this;
+            }
+            ++(*bucketIter);
+            if (!(*bucketIter).atEnd()) {
+                return *this;
+            }
+            while (true) {
+                ++(*ArrayIter);
+                if (ArrayIter->atEnd()) {
+                    break;
+                }
+                auto& lst = **ArrayIter;
+                bucketIter = new typename LinkedListSmart<KeyValue<TKey,TElement>>::Iterator(&lst);
+                if (!(*bucketIter).atEnd()) {
+                    break;
+                }
+            }
+            return *this;
+        }
+        Iterator& operator+=(size_t steps) override {
+            while(steps-- > 0) {
+                ++(*this);
+            }
+            return *this;
+        }
+
+        bool operator==(const IDictionaryIterator<TKey, TElement> & other) const override {
+            auto* o = dynamic_cast<const Iterator*>(&other);
+            if (!o) return false;
+            bool sameArray   = (*this->ArrayIter) == (*o->ArrayIter);
+            bool sameBucket  = (*this->bucketIter) == (*o->bucketIter);
+            return sameArray && sameBucket;
+        }
+        bool operator!=(const IDictionaryIterator<TKey, TElement>& other) const override {
+            return !(*this == other);
+        }
+
+        bool atEnd() const override {
+            if (ArrayIter->atEnd()) return true;
+            return (*bucketIter).atEnd();
+        }
+
+    private:
+        typename DynamicArraySmart<LinkedListSmart<KeyValue<TKey, TElement>>>::Iterator* ArrayIter;
+        typename LinkedListSmart<KeyValue<TKey, TElement>>::Iterator* bucketIter;
+        void goToValidBucket() {
+            if (ArrayIter->atEnd()) {
+                return;
+            }
+            auto & lst = **ArrayIter;
+            bucketIter = new typename LinkedListSmart<KeyValue<TKey,TElement>>::Iterator(&lst);
+            while (!ArrayIter->atEnd() && (*bucketIter).atEnd()) {
+                ++(*ArrayIter);
+                if (!ArrayIter->atEnd()) {
+                    auto & nextLst = **ArrayIter;
+                    bucketIter = new typename LinkedListSmart<KeyValue<TKey,TElement>>::Iterator(&nextLst);
+                }
+            }
+        }
     };
 
-    UnqPtr<DynamicArraySmart<LinkedListSmart<KeyValuePair>>> table;
+
+    typedef LinkedListSmart<KeyValue<TKey, TElement>> KeyValueList;
+    typedef DynamicArraySmart<KeyValueList> ArrayList;
+    typedef UnqPtr<ArrayList> TableUPtr;
+
+    TableUPtr table;
     size_t count;
-    size_t capacity;
 
     size_t HashFunction(const TKey &key) const;
 
     void Rehash();
-
-    class HashTableIterator : public IDictionaryIterator<TKey, TElement> {
-    public:
-        HashTableIterator(const HashTable *hashTable);
-
-        virtual ~HashTableIterator() {}
-
-        bool MoveNext() override;
-
-        void Reset() override;
-
-        TKey GetCurrentKey() const override;
-
-        TElement GetCurrentValue() const override;
-
-    private:
-        const HashTable *hashTable;
-        size_t bucketIndex;
-        int listIndex;
-    };
 };
 
 template<typename TKey, typename TElement>
 HashTable<TKey, TElement>::HashTable(size_t initialCapacity)
-        : table(new DynamicArraySmart<LinkedListSmart<KeyValuePair>>(static_cast<int>(initialCapacity))), count(0),
-          capacity(initialCapacity) {
-    for (size_t i = 0; i < capacity; ++i) {
-        table->Append(LinkedListSmart<KeyValuePair>());
+        : table(new DynamicArraySmart<LinkedListSmart<KeyValue<TKey, TElement>>>(static_cast<int>(initialCapacity))), count(0) {
+    for (size_t i = 0; i < initialCapacity; ++i) {
+        table->Append(LinkedListSmart<KeyValue<TKey, TElement>>());
     }
 }
 
 template<typename TKey, typename TElement>
-HashTable<TKey, TElement>::~HashTable() {
-
-}
+HashTable<TKey, TElement>::~HashTable() {}
 
 template<typename TKey, typename TElement>
 size_t HashTable<TKey, TElement>::GetCount() const {
@@ -91,32 +160,29 @@ size_t HashTable<TKey, TElement>::GetCount() const {
 
 template<typename TKey, typename TElement>
 size_t HashTable<TKey, TElement>::GetCapacity() const {
-    return capacity;
+    return table->GetLength();
 }
 
 template<typename TKey, typename TElement>
 size_t HashTable<TKey, TElement>::HashFunction(const TKey &key) const {
-    if constexpr (std::is_same<TKey, IndexPair>::value) {
-        return IndexPairHash()(key);
-    } else {
-        return std::hash<TKey>()(key);
-    }
+    return std::hash<TKey>()(key);
 }
 
 template<typename TKey, typename TElement>
 void HashTable<TKey, TElement>::Add(const TKey &key, const TElement &element) {
+    size_t capacity = table->GetLength();
     size_t index = HashFunction(key) % capacity;
-    LinkedListSmart<KeyValuePair> &chain = table->Get(static_cast<int>(index));
-
-    auto iterator = chain.begin();
-    for (; iterator != chain.end(); ++iterator) {
-        if ((*iterator).key == key) {
-            (*iterator).value = element;
+    auto arrIter = table->GetIterator();
+    (*arrIter) += index;
+    LinkedListSmart<KeyValue<TKey, TElement>> &chain = (**arrIter);
+    for (auto it = chain.GetIterator();!it->atEnd(); ++(*it)) {
+        if ((*it)->key == key) {
+            (*it)->value = element;
             return;
         }
     }
 
-    chain.Append(KeyValuePair(key, element));
+    chain.Append(KeyValue<TKey, TElement>(key, element));
     ++count;
 
     if (static_cast<double>(count) / capacity > 0.75) {
@@ -126,13 +192,14 @@ void HashTable<TKey, TElement>::Add(const TKey &key, const TElement &element) {
 
 template<typename TKey, typename TElement>
 void HashTable<TKey, TElement>::Remove(const TKey &key) {
+    size_t capacity = table->GetLength();
     size_t index = HashFunction(key) % capacity;
-    LinkedListSmart<KeyValuePair> &chain = table->Get(static_cast<int>(index));
-
-    auto iterator = chain.begin();
+    auto arrIter = table->GetIterator();
+    (*arrIter) += index;
+    LinkedListSmart<KeyValue<TKey, TElement>> &chain = (**arrIter);
     int i = 0;
-    for (; iterator != chain.end(); ++iterator) {
-        if ((*iterator).key == key) {
+    for (auto it = chain.GetIterator();!it->atEnd(); ++(*it)) {
+        if ((*it)->key == key) {
             chain.RemoveAt(i);
             --count;
             return;
@@ -145,12 +212,15 @@ void HashTable<TKey, TElement>::Remove(const TKey &key) {
 
 template<typename TKey, typename TElement>
 void HashTable<TKey, TElement>::Update(const TKey &key, const TElement &element) {
+    size_t capacity = table->GetLength();
     size_t index = HashFunction(key) % capacity;
-    LinkedListSmart<KeyValuePair> &chain = table->Get(static_cast<int>(index));
+    auto arrIter = table->GetIterator();
+    (*arrIter) += index;
+    LinkedListSmart<KeyValue<TKey, TElement>> &chain = (**arrIter);
 
-    for (int i = 0; i < chain.GetLength(); ++i) {
-        if (chain.Get(i).key == key) {
-            chain.Get(i).value = element;
+    for (auto it = chain.GetIterator();!it->atEnd(); ++(*it)) {
+        if ((*it)->key == key) {
+            (*it)->value = element;
             return;
         }
     }
@@ -160,11 +230,14 @@ void HashTable<TKey, TElement>::Update(const TKey &key, const TElement &element)
 
 template<typename TKey, typename TElement>
 bool HashTable<TKey, TElement>::ContainsKey(const TKey &key) const {
+    size_t capacity = table->GetLength();
     size_t index = HashFunction(key) % capacity;
-    const LinkedListSmart<KeyValuePair> &chain = table->Get(static_cast<int>(index));
+    auto arrIter = table->GetIterator();
+    (*arrIter) += index;
+    LinkedListSmart<KeyValue<TKey, TElement>> &chain = (**arrIter);
 
-    for (int i = 0; i < chain.GetLength(); ++i) {
-        if (chain.Get(i).key == key) {
+    for (auto it = chain.GetIterator();!it->atEnd(); ++(*it)) {
+        if ((*it)->key == key) {
             return true;
         }
     }
@@ -174,12 +247,14 @@ bool HashTable<TKey, TElement>::ContainsKey(const TKey &key) const {
 
 template<typename TKey, typename TElement>
 TElement HashTable<TKey, TElement>::Get(const TKey &key) const {
+    size_t capacity = table->GetLength();
     size_t index = HashFunction(key) % capacity;
-    const LinkedListSmart<KeyValuePair> &chain = table->Get(static_cast<int>(index));
-
-    for (int i = 0; i < chain.GetLength(); ++i) {
-        if (chain.Get(i).key == key) {
-            return chain.Get(i).value;
+    auto arrIter = table->GetIterator();
+    (*arrIter) += index;
+    LinkedListSmart<KeyValue<TKey, TElement>> &chain = (**arrIter);
+    for (auto it = chain.GetIterator(); !it->atEnd(); ++(*it)) {
+        if ((*it)->key == key) {
+            return (*it)->value;
         }
     }
 
@@ -188,74 +263,27 @@ TElement HashTable<TKey, TElement>::Get(const TKey &key) const {
 
 template<typename TKey, typename TElement>
 void HashTable<TKey, TElement>::Rehash() {
-    size_t newCapacity = capacity * 2;
-    UnqPtr<DynamicArraySmart<LinkedListSmart<KeyValuePair>>> newTable(
-            new DynamicArraySmart<LinkedListSmart<KeyValuePair>>(static_cast<int>(newCapacity)));
+    size_t oldCapacity = table->GetLength();
+    size_t newCapacity = oldCapacity * 2;
+    UnqPtr<DynamicArraySmart<LinkedListSmart<KeyValue<TKey, TElement>>>> newTable(
+            new DynamicArraySmart<LinkedListSmart<KeyValue<TKey, TElement>>>(static_cast<int>(newCapacity)));
 
     for (size_t i = 0; i < newCapacity; ++i) {
-        newTable->Append(LinkedListSmart<KeyValuePair>());
+        newTable->Append(LinkedListSmart<KeyValue<TKey, TElement>>());
     }
 
-    for (size_t i = 0; i < capacity; ++i) {
-        LinkedListSmart<KeyValuePair> &chain = table->Get(static_cast<int>(i));
-        for (int j = 0; j < chain.GetLength(); ++j) {
-            const KeyValuePair &kvp = chain.Get(j);
+    for (size_t i = 0; i < oldCapacity; ++i) {
+        auto arrIter = table->GetIterator();
+        (*arrIter) += i;
+        LinkedListSmart<KeyValue<TKey, TElement>> &chain = (**arrIter);
+        for (auto it = chain.GetIterator();!it->atEnd(); ++(*it)) {
+            const KeyValue<TKey, TElement> &kvp = *(*it);
             size_t index = HashFunction(kvp.key) % newCapacity;
-            newTable->Get(static_cast<int>(index)).Append(kvp);
+            auto newArrIt = newTable->GetIterator();
+            (*newArrIt) += index;
+            (**newArrIt).Append(kvp);
         }
     }
 
     table = std::move(newTable);
-    capacity = newCapacity;
-}
-
-template<typename TKey, typename TElement>
-HashTable<TKey, TElement>::HashTableIterator::HashTableIterator(const HashTable *hashTable)
-        : hashTable(hashTable), bucketIndex(0), listIndex(-1) {
-}
-
-template<typename TKey, typename TElement>
-bool HashTable<TKey, TElement>::HashTableIterator::MoveNext() {
-    ++listIndex;
-
-    while (bucketIndex < hashTable->capacity) {
-        LinkedListSmart<KeyValuePair> &chain = hashTable->table->Get(static_cast<int>(bucketIndex));
-        if (listIndex < chain.GetLength()) {
-            return true;
-        } else {
-            ++bucketIndex;
-            listIndex = 0;
-        }
-    }
-
-    return false;
-}
-
-template<typename TKey, typename TElement>
-void HashTable<TKey, TElement>::HashTableIterator::Reset() {
-    bucketIndex = 0;
-    listIndex = -1;
-}
-
-template<typename TKey, typename TElement>
-TKey HashTable<TKey, TElement>::HashTableIterator::GetCurrentKey() const {
-    if (bucketIndex >= hashTable->capacity)
-        throw std::out_of_range("Iterator out of range");
-
-    const LinkedListSmart<KeyValuePair> &chain = hashTable->table->Get(static_cast<int>(bucketIndex));
-    return chain.Get(listIndex).key;
-}
-
-template<typename TKey, typename TElement>
-TElement HashTable<TKey, TElement>::HashTableIterator::GetCurrentValue() const {
-    if (bucketIndex >= hashTable->capacity)
-        throw std::out_of_range("Iterator out of range");
-
-    const LinkedListSmart<KeyValuePair> &chain = hashTable->table->Get(static_cast<int>(bucketIndex));
-    return chain.Get(listIndex).value;
-}
-
-template<typename TKey, typename TElement>
-UnqPtr<IDictionaryIterator<TKey, TElement>> HashTable<TKey, TElement>::GetIterator() const {
-    return UnqPtr<IDictionaryIterator<TKey, TElement>>(new HashTableIterator(this));
 }

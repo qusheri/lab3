@@ -38,7 +38,6 @@ string GenerateRandomString(size_t length) {
     return result;
 }
 
-// Функция тестирования времени вставки и записи в CSV
 template <typename Dictionary>
 void TestInsertionToCSV(const string& testName, const vector<size_t>& sizes, const string& filename) {
     ofstream csvFile(filename, ios::app);
@@ -47,40 +46,34 @@ void TestInsertionToCSV(const string& testName, const vector<size_t>& sizes, con
         return;
     }
 
-    // Записываем имя теста
     csvFile << testName;
 
     for (size_t num_elements : sizes) {
         Dictionary dict;
 
-        // Генерация случайных ключей
         vector<string> keys;
         keys.reserve(num_elements);
         for (size_t i = 0; i < num_elements; ++i) {
             keys.push_back(GenerateRandomString(10));
         }
 
-        // Измерение времени вставки
         auto start = high_resolution_clock::now();
         for (size_t i = 0; i < num_elements; ++i) {
             dict.Add(keys[i], static_cast<int>(i));
         }
         auto end = high_resolution_clock::now();
 
-        // Расчет времени в миллисекундах
         auto duration = duration_cast<milliseconds>(end - start).count();
 
-        // Записываем результат в CSV
         csvFile << "," << duration;
 
         cout << testName << ": Inserted " << num_elements << " elements in " << duration << " ms" << endl;
     }
 
-    csvFile << "\n"; // Завершаем строку
+    csvFile << "\n";
     csvFile.close();
 }
 
-// Функция тестирования времени поиска и записи в CSV
 template <typename Dictionary>
 void TestSearchToCSV(const string& testName, const vector<size_t>& sizes, const string& filename) {
     ofstream csvFile(filename, ios::app);
@@ -89,13 +82,11 @@ void TestSearchToCSV(const string& testName, const vector<size_t>& sizes, const 
         return;
     }
 
-    // Записываем имя теста
     csvFile << testName;
 
     for (size_t num_elements : sizes) {
         Dictionary dict;
 
-        // Генерация случайных ключей и добавление в структуру
         vector<string> keys;
         keys.reserve(num_elements);
         for (size_t i = 0; i < num_elements; ++i) {
@@ -104,23 +95,20 @@ void TestSearchToCSV(const string& testName, const vector<size_t>& sizes, const 
             dict.Add(key, static_cast<int>(i));
         }
 
-        // Измерение времени поиска
         auto start = high_resolution_clock::now();
         for (size_t i = 0; i < num_elements; ++i) {
             dict.Get(keys[i]);
         }
         auto end = high_resolution_clock::now();
 
-        // Расчет времени в миллисекундах
         auto duration = duration_cast<milliseconds>(end - start).count();
 
-        // Записываем результат в CSV
         csvFile << "," << duration;
 
         cout << testName << ": Searched " << num_elements << " elements in " << duration << " ms" << endl;
     }
 
-    csvFile << "\n"; // Завершаем строку
+    csvFile << "\n";
     csvFile.close();
 }
 
@@ -136,7 +124,7 @@ void write_first(const vector<size_t>& sizes, const string& filename) {
         csvFile << "," << size;
     }
 
-    csvFile << "\n"; // Завершаем строку
+    csvFile << "\n";
     csvFile.close();
 }
 

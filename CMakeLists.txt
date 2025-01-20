@@ -15,4 +15,5 @@ add_executable(lab3 main.cpp
         test_btree.cpp
         test_hashtable.cpp
         test_sparse_matrix.cpp
-        test_sparse_vector.cpp)
+        test_sparse_vector.cpp
+        DataStructures/SequenceIterator.h)

@@ -9,7 +9,7 @@
 template<typename TKey, typename TElement>
 class BTree : public IDictionary<TKey, TElement> {
 public:
-    BTree(int order = 3);
+    BTree(int order = 50);
 
     virtual ~BTree();
 
@@ -27,7 +27,9 @@ public:
 
     void Update(const TKey &key, const TElement &element) override;
 
-    UnqPtr<IDictionaryIterator<TKey, TElement>> GetIterator() const override;
+    UnqPtr<IDictionaryIterator<TKey, TElement>> GetIterator() override {
+        return UnqPtr<IDictionaryIterator<TKey, TElement>>(new Iterator(this));
+    }
 
 private:
     struct Node {
@@ -70,19 +72,101 @@ private:
 
     void Merge(ShrdPtr<Node> x, int idx);
 
-    class BTreeIterator : public IDictionaryIterator<TKey, TElement> {
+    class Iterator : public IDictionaryIterator<TKey, TElement> {
     public:
-        BTreeIterator(const BTree *tree);
+        Iterator(const BTree *tree) : tree(tree), hasCurrent(false) {
+            Iterator::Reset();
+        }
 
-        virtual ~BTreeIterator() {}
+        ~Iterator() override {}
 
-        bool MoveNext() override;
+        void Reset() override {
+            stack = DynamicArraySmart<StackNode>();
+            hasCurrent = false;
+            if (tree->root) {
+                PushLeftmost(tree->root);
+            }
+            operator++();
+        }
 
-        void Reset() override;
+        TElement& operator*() const override {
+            if (!hasCurrent) {
+                throw std::out_of_range("Iterator is not at a valid element");
+            }
+            return const_cast<TElement&>(currentValue);
+        }
 
-        TKey GetCurrentKey() const override;
+        TKey& GetCurrentKey() const {
+            if (!hasCurrent) {
+                throw std::out_of_range("Iterator is not at a valid element");
+            }
+            return const_cast<TKey&>(currentKey);
+        }
 
-        TElement GetCurrentValue() const override;
+        TElement* operator->() const override {
+            if (!hasCurrent) {
+                throw std::out_of_range("Iterator is not at a valid element");
+            }
+            return const_cast<TElement*>(&currentValue);
+        }
+
+        Iterator& operator++() override {
+            while (stack.GetLength() > 0) {
+                StackNode &top = stack[stack.GetLength() - 1];
+
+                if (top.index < top.node->numKeys) {
+                    if (top.node->numKeys == 0) {
+                        stack.RemoveAt(stack.GetLength() - 1);
+                        continue;
+                    }
+
+                    currentKey = top.node->keys[top.index];
+                    currentValue = top.node->values[top.index];
+                    hasCurrent = true;
+
+                    if (!top.node->isLeaf) {
+                        if (top.index + 1 <= top.node->numKeys) {
+                            ShrdPtr<Node> child = top.node->children[top.index + 1];
+                            ++top.index;
+                            PushLeftmost(child);
+                        } else {
+                            ++top.index;
+                        }
+                    } else {
+                        ++top.index;
+                    }
+
+                    return *this;
+                } else {
+                    stack.RemoveAt(stack.GetLength() - 1);
+                }
+            }
+
+            hasCurrent = false;
+            return *this;
+        }
+        Iterator& operator+=(size_t steps) override {
+            for (int i = 0; i < steps; ++i) {
+                ++(*this);
+            }
+            return *this;
+        }
+
+        bool operator==(const IDictionaryIterator<TKey, TElement>& other) const override {
+            const auto* otherIter = dynamic_cast<const Iterator*>(&other);
+            if (!otherIter) return false;
+            return hasCurrent == otherIter->hasCurrent &&
+                   currentKey == otherIter->currentKey &&
+                   currentValue == otherIter->currentValue;
+        }
+        bool operator!=(const IDictionaryIterator<TKey, TElement>& other) const override {
+            return !(*this == other);
+        }
+
+        bool atEnd() const override {
+            return !hasCurrent;
+        }
+
 
     private:
         const BTree *tree;
@@ -95,11 +179,21 @@ private:
         TElement currentValue;
         bool hasCurrent;
 
-        void PushLeftmost(ShrdPtr<Node> node);
+        void PushLeftmost(ShrdPtr<Node> node) {
+            while (node && node->numKeys > 0) {
+                StackNode sn = {node, 0};
+                stack.Append(sn);
+                if (node->isLeaf)
+                    break;
+                else
+                    node = node->children[0];
+            }
+        }
     };
 
     friend class BTreeTest;
 };
+
 
 template<typename TKey, typename TElement>
 BTree<TKey, TElement>::Node::Node(bool leaf, int order)
@@ -441,89 +535,4 @@ void BTree<TKey, TElement>::Merge(ShrdPtr<Node> x, int idx) {
     child->numKeys += sibling->numKeys + 1;
     --x->numKeys;
     sibling.reset();
-}
-
-template<typename TKey, typename TElement>
-BTree<TKey, TElement>::BTreeIterator::BTreeIterator(const BTree *tree)
-        : tree(tree), hasCurrent(false) {
-    Reset();
-}
-
-template<typename TKey, typename TElement>
-void BTree<TKey, TElement>::BTreeIterator::Reset() {
-    stack = DynamicArraySmart<StackNode>();
-    hasCurrent = false;
-    if (tree->root) {
-        PushLeftmost(tree->root);
-    }
-}
-
-template<typename TKey, typename TElement>
-void BTree<TKey, TElement>::BTreeIterator::PushLeftmost(ShrdPtr<Node> node) {
-    while (node && node->numKeys > 0) {
-        StackNode sn = {node, 0};
-        stack.Append(sn);
-        if (node->isLeaf)
-            break;
-        else
-            node = node->children[0];
-    }
-}
-
-template<typename TKey, typename TElement>
-bool BTree<TKey, TElement>::BTreeIterator::MoveNext() {
-    while (stack.GetLength() > 0) {
-        StackNode &top = stack[stack.GetLength() - 1];
-
-        if (top.index < top.node->numKeys) {
-            if (top.node->numKeys == 0) {
-                stack.RemoveAt(stack.GetLength() - 1);
-                continue;
-            }
-
-            currentKey = top.node->keys[top.index];
-            currentValue = top.node->values[top.index];
-            hasCurrent = true;
-
-            if (!top.node->isLeaf) {
-                if (top.index + 1 <= top.node->numKeys) {
-                    ShrdPtr<Node> child = top.node->children[top.index + 1];
-                    ++top.index;
-                    PushLeftmost(child);
-                } else {
-                    ++top.index;
-                }
-            } else {
-                ++top.index;
-            }
-
-            return true;
-        } else {
-            stack.RemoveAt(stack.GetLength() - 1);
-        }
-    }
-
-    hasCurrent = false;
-    return false;
-}
-
-
-template<typename TKey, typename TElement>
-TKey BTree<TKey, TElement>::BTreeIterator::GetCurrentKey() const {
-    if (!hasCurrent)
-        throw std::out_of_range("Iterator out of range");
-    return currentKey;
-}
-
-template<typename TKey, typename TElement>
-TElement BTree<TKey, TElement>::BTreeIterator::GetCurrentValue() const {
-    if (!hasCurrent)
-        throw std::out_of_range("Iterator out of range");
-    return currentValue;
-}
-
-
-template<typename TKey, typename TElement>
-UnqPtr<IDictionaryIterator<TKey, TElement>> BTree<TKey, TElement>::GetIterator() const {
-    return UnqPtr<IDictionaryIterator<TKey, TElement>>(new BTreeIterator(this));
 }

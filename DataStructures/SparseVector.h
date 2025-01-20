@@ -1,12 +1,10 @@
 #pragma once
 
 #include "IDictionary.h"
-#include "ShrdPtr.h"
 #include "DynamicArray.h"
 #include "KeyValue.h"
 #include "memory"
 #include "stdexcept"
-#include <vector>
 
 template <typename TElement>
 class SparseVector
@@ -76,11 +74,12 @@ public:
     {
         DynamicArraySmart<KeyValue<int, TElement>> updates;
         auto iterator = elements->GetIterator();
-        while (iterator->MoveNext()) {
+        while (!(*iterator).atEnd()) {
             int key = iterator->GetCurrentKey();
-            TElement value = iterator->GetCurrentValue();
+            TElement value = (**iterator);
             TElement newValue = func(value);
             elements->Update(key, newValue);
+            ++*iterator;
         }
     }
 
@@ -89,10 +88,11 @@ public:
     {
         FuncType result = initial;
         auto iterator = elements->GetIterator();
-        while (iterator->MoveNext())
+        while (!(*iterator).atEnd())
         {
-            TElement value = iterator->GetCurrentValue();
+            TElement value = **iterator;
             result = func(result, value);
+            ++*iterator;
         }
         return result;
     }

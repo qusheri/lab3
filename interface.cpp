@@ -22,7 +22,7 @@ void displayMenu() {
         func_test_all();
     } else if(choice == 3) {
         std::vector<size_t> sizes;
-        for(size_t i = 1; i <= 10001; i+= 1000) {
+        for(size_t i = 1; i <= 100001; i+= 10000) {
             sizes.push_back(i);
         }
         all_load_tests(sizes);
@@ -61,11 +61,11 @@ void displayMenu() {
             int rows, cols;
             std::cout << "Enter rows and columns:\n";
             std::cin >> rows >> cols;
-            UnqPtr<IDictionary<IndexPair, double>> dictionary;
+            UnqPtr<IDictionary<KeyValue<int, int>, double>> dictionary;
             if (dictionaryChoice == 1) {
-                dictionary = UnqPtr<IDictionary<IndexPair, double>>(new HashTable<IndexPair, double>());
+                dictionary = UnqPtr<IDictionary<KeyValue<int, int>, double>>(new HashTable<KeyValue<int, int>, double>());
             } else if (dictionaryChoice == 2) {
-                dictionary = UnqPtr<IDictionary<IndexPair, double>>(new BTree<IndexPair, double>());
+                dictionary = UnqPtr<IDictionary<KeyValue<int, int>, double>>(new BTree<KeyValue<int, int>, double>());
             } else {
                 std::cout << "Invalid choice. Exiting...\n";
                 return;

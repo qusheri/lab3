@@ -2,19 +2,16 @@
 
 
 #include "IDictionary.h"
-#include "IndexPair.h"
-#include "ShrdPtr.h"
 #include "DynamicArray.h"
 #include "KeyValue.h"
-#include <vector>
 
 template<typename TElement>
 class SparseMatrix {
 public:
-    SparseMatrix(int rows, int columns, UnqPtr<IDictionary<IndexPair, TElement>> dictionary)
+    SparseMatrix(int rows, int columns, UnqPtr<IDictionary<KeyValue<int, int>, TElement>> dictionary)
             : rows(rows), columns(columns), elements(std::move(dictionary)) {}
 
-    SparseMatrix() : rows(0), columns(0), elements(UnqPtr<IDictionary<IndexPair, TElement>>()) {}
+    SparseMatrix() : rows(0), columns(0), elements(UnqPtr<IDictionary<KeyValue<int, int>, TElement>>()) {}
 
     ~SparseMatrix(){}
 
@@ -35,7 +32,7 @@ public:
             throw std::out_of_range("Row or column index is out of bounds.");
         }
 
-        IndexPair key(row, column);
+        KeyValue<int, int> key(row, column);
         if (elements->ContainsKey(key))
         {
             return elements->Get(key);
@@ -53,7 +50,7 @@ public:
             throw std::out_of_range("Row or column index is out of bounds.");
         }
 
-        IndexPair key(row, column);
+        KeyValue<int, int> key(row, column);
         if (value != TElement())
         {
             if (elements->ContainsKey(key))
@@ -67,7 +64,7 @@ public:
         }
         else
         {
-            RemoveElement(key.row, key.column);
+            RemoveElement(key.key, key.value);
         }
     }
 
@@ -76,17 +73,17 @@ public:
             throw std::out_of_range("Row or column index is out of bounds.");
         }
 
-        IndexPair key(row, column);
+        KeyValue<int, int> key(row, column);
         if (elements->ContainsKey(key)) {
             elements->Remove(key);
         }
     }
 
-    void ForEach(void (*func)(const IndexPair &, const TElement &)) const {
+    void ForEach(void (*func)(const KeyValue<int, int> &, const TElement &)) const {
         auto iterator = elements->GetIterator();
 
         while (iterator->MoveNext()) {
-            IndexPair key = iterator->GetCurrentKey();
+            KeyValue<int, int> key = iterator->GetCurrentKey();
             TElement value = iterator->GetCurrentValue();
             func(key, value);
         }
@@ -96,14 +93,13 @@ public:
 
     void Map(TElement (*func)(const TElement&))
     {
-        DynamicArraySmart<KeyValue<IndexPair, TElement>> updates;
         auto iterator = elements->GetIterator();
-        while (iterator->MoveNext())
+        while (!iterator->atEnd())
         {
-            IndexPair key = iterator->GetCurrentKey();
-            TElement value = iterator->GetCurrentValue();
-            TElement newValue = func(value);
-            elements->Update(key, newValue);
+            KeyValue<int, int> key = iterator->GetCurrentKey();
+            TElement value = **iterator;
+            elements->Update(key, func(value));
+            ++(*iterator);
         }
     }
 
@@ -112,26 +108,27 @@ public:
     {
         FuncType result = initial;
         auto iterator = elements->GetIterator();
-        while (iterator->MoveNext())
+        while (!(*iterator).atEnd())
         {
-            TElement value = iterator->GetCurrentValue();
+            TElement value = **iterator;
             result = func(result, value);
+            ++*iterator;
         }
         return result;
     }
 
-    UnqPtr<IDictionaryIterator<IndexPair, TElement>> GetIterator() const
+    UnqPtr<IDictionaryIterator<KeyValue<int, int>, TElement>> GetIterator() const
     {
         return elements->GetIterator();
     }
 
-    const IDictionary<IndexPair, TElement>& GetElements() const {
+    const IDictionary<KeyValue<int, int>, TElement>& GetElements() const {
         return *elements;
     }
 
 private:
     int rows;
     int columns;
-    UnqPtr<IDictionary<IndexPair, TElement>> elements;
+    UnqPtr<IDictionary<KeyValue<int, int>, TElement>> elements;
 };
 

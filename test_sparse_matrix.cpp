@@ -16,7 +16,7 @@ std::string forReduce_matrix(const std::string& res, const double& x) {
 void func_test_sparse_matrix() {
 
     {
-        UnqPtr<IDictionary<IndexPair, double>> dictionary(new HashTable<IndexPair, double>());
+        UnqPtr<IDictionary<KeyValue<int, int>, double>> dictionary(new HashTable<KeyValue<int, int>, double>());
         SparseMatrix matrix(3, 3, std::move(dictionary));
 
         assert(matrix.GetColumns() == 3);
@@ -58,7 +58,7 @@ void func_test_sparse_matrix() {
     }
 
     {
-        UnqPtr<IDictionary<IndexPair, double>> dictionary(new BTree<IndexPair, double>());
+        UnqPtr<IDictionary<KeyValue<int, int>, double>> dictionary(new BTree<KeyValue<int, int>, double>());
         SparseMatrix matrix(3, 3, std::move(dictionary));
 
         assert(matrix.GetColumns() == 3);
@@ -115,7 +115,7 @@ std::pair<double, double> load_test_sparse_matrix(const int& size, const int& nu
 
     {
         std::cout << "  Using HashTable as storage...\n";
-        UnqPtr<IDictionary<IndexPair, double>> dictionary(new HashTable<IndexPair, double>());
+        UnqPtr<IDictionary<KeyValue<int, int>, double>> dictionary(new HashTable<KeyValue<int, int>, double>());
         SparseMatrix<double> matrix(size, size, std::move(dictionary));
 
         auto start = std::chrono::high_resolution_clock::now();
@@ -134,7 +134,7 @@ std::pair<double, double> load_test_sparse_matrix(const int& size, const int& nu
 
     {
         std::cout << "  Using BTree as storage...\n";
-        UnqPtr<IDictionary<IndexPair, double>> dictionary(new BTree<IndexPair, double>());
+        UnqPtr<IDictionary<KeyValue<int, int>, double>> dictionary(new BTree<KeyValue<int, int>, double>());
         SparseMatrix<double> matrix(size, size, std::move(dictionary));
 
         auto start = std::chrono::high_resolution_clock::now();

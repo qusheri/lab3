@@ -2,6 +2,7 @@
 
 #include "Sequence.h"
 #include "UnqPtr.h"
+#include "ShrdPtr.h"
 #include <stdexcept>
 #include <utility>
 
@@ -20,6 +21,8 @@ private:
         data = std::move(newData);
         capacity = newCapacity;
     }
+    template <typename TKey, typename TElement>
+    friend class HashTable;
 
 public:
     DynamicArraySmart() : data(nullptr), capacity(0), length(0) {}
@@ -50,24 +53,6 @@ public:
             other.length = 0;
         }
         return *this;
-    }
-
-    T& GetFirst() const override {
-        if (length == 0)
-            throw std::out_of_range("DynamicArraySmart is empty");
-        return data[0];
-    }
-
-    T& GetLast() const override {
-        if (length == 0)
-            throw std::out_of_range("DynamicArraySmart is empty");
-        return data[length - 1];
-    }
-
-    T& Get(int index) const override {
-        if (index < 0 || index >= length)
-            throw std::out_of_range("Index out of range");
-        return data[index];
     }
 
     Sequence<T>* GetSubsequence(int startIndex, int endIndex) const override {
@@ -134,7 +119,7 @@ public:
             newArray->Append(data[i]);
         }
         for (int i = 0; i < list->GetLength(); ++i) {
-            newArray->Append(list->Get(i));
+            newArray->Append(data[i]);
         }
         return newArray;
     }
@@ -149,5 +134,72 @@ public:
         if (index < 0 || index >= length)
             throw std::out_of_range("Index out of range");
         return data[index];
+    }
+
+    class Iterator : public SequenceIterator<T> {
+    private:
+        ShrdPtr<DynamicArraySmart> array;
+        size_t currentIndex;
+
+    public:
+        explicit Iterator(size_t index, DynamicArraySmart* array) : array(array), currentIndex(index) {}
+        explicit Iterator(DynamicArraySmart* array)
+            : array(array), currentIndex(0) {}
+
+        void Reset() override {
+            currentIndex = array->GetLength() - 1;
+        }
+
+        const size_t& GetKey() const {
+            return currentIndex;
+        }
+
+        const size_t& GetSize() const {
+            return array->GetLength();
+        }
+
+        T& operator*() const override {
+            if (currentIndex < 0 || currentIndex >= array->GetLength()) throw std::out_of_range("Iterator out of range");
+            return (*array)[static_cast<int>(currentIndex)];
+        }
+
+        T* operator->() const override {
+            if (currentIndex < 0 || currentIndex >= array->GetLength()) throw std::out_of_range("Iterator out of range");
+            return &(*array)[static_cast<int>(currentIndex)];
+        }
+
+        Iterator& operator++() override {
+            return *this += 1;
+        }
+
+        Iterator& operator+=(size_t steps) override {
+            currentIndex += steps;
+            return *this;
+        }
+
+        Iterator& operator--() {
+            return *this += -1;
+        }
+
+        Iterator& operator-=(int steps) {
+            return *this += -steps;
+        }
+
+        bool operator==(const SequenceIterator<T>& other) const override {
+            auto* otherIterator = dynamic_cast<const Iterator*>(&other);
+            return otherIterator && currentIndex == otherIterator->currentIndex;
+        }
+
+        bool operator!=(const SequenceIterator<T>& other) const override {
+            return !(*this == other);
+        }
+
+        bool atEnd() const override {
+            return currentIndex == array->GetLength();
+        }
+    };
+
+    SequenceIterator<T>* GetIterator() override {
+        return new Iterator(0, this);
     }
 };

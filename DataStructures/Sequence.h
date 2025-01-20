@@ -1,14 +1,10 @@
 #pragma once
 
+#include "SequenceIterator.h"
+
 template<class T>
 class Sequence {
 public:
-    virtual T& GetFirst() const = 0;
-
-    virtual T& GetLast() const = 0;
-
-    virtual T& Get(int index) const = 0;
-
     virtual Sequence<T> *GetSubsequence(int startIndex, int endIndex) const = 0;
 
     virtual int GetLength() const = 0;
@@ -23,6 +19,8 @@ public:
 
     virtual Sequence<T> *Concat(Sequence<T> *list) const = 0;
 
-    virtual ~Sequence() {};
+    virtual SequenceIterator<T>* GetIterator() = 0;
+
+    virtual ~Sequence() {}
 };
 
