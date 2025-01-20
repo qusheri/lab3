@@ -1,7 +1,7 @@
 import pandas as pd
 import matplotlib.pyplot as plt
 
-def plot_performance(csv_file, output_file="performance_plot.png"):
+def plot_performance(csv_file, output_file="../performance_plot.png"):
     try:
         data = pd.read_csv(csv_file)
 
